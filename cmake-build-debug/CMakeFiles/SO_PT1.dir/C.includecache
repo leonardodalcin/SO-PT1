@@ -6,7 +6,15 @@
 
 #IncludeRegexTransform: 
 
+/Users/leonardodalcin/CLionProjects/SO-PT1/cthread.h
+sys/_types/_ucontext.h
+-
+ucontext.h
+/Users/leonardodalcin/CLionProjects/SO-PT1/ucontext.h
+
 /Users/leonardodalcin/CLionProjects/SO-PT1/main.c
+cthread.h
+/Users/leonardodalcin/CLionProjects/SO-PT1/cthread.h
 stdio.h
 -
 

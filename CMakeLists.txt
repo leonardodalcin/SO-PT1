@@ -3,4 +3,4 @@ project(SO_PT1 C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(SO_PT1 main.c)
+add_executable(SO_PT1 main.c cthread.h)

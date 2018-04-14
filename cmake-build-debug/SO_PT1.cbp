@@ -80,6 +80,9 @@
 				</MakeCommands>
 			</Target>
 		</Build>
+		<Unit filename="/Users/leonardodalcin/CLionProjects/SO-PT1/cthread.h">
+			<Option target="SO_PT1"/>
+		</Unit>
 		<Unit filename="/Users/leonardodalcin/CLionProjects/SO-PT1/main.c">
 			<Option target="SO_PT1"/>
 		</Unit>
