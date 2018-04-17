@@ -1,18 +1,12 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <ucontext.h>
 
-#include "support.h"
-#include "cthread.h"
-#include "cdata.h"
+#include "../include/support.h"
+#include "../include/cthread.h"
+#include "../include/cdata.h"
 #define stackSize SIGSTKSZ
-
-#define stateApto 0
-#define stateExecutando 1
-#define stateBloqueado 2
-#define stateBloqueadoSuspenso 3
-#define stateAptoSuspenso 4
-#define stateTermino 5
 
 typedef enum { false, true } bool;
 bool isBooted = false;
@@ -22,21 +16,16 @@ TCB_t *currentThread;
 TCB_t *mainThread;
 TCB_t *endThread;
 
-
-
-
-//inicia proxima thread da fila de aptos
-
 void dispatch(){
     printf("[dispatch] Starting dispatch proc\n");
-    if(FirstFila2(&aptos) == 0) {
+    if(FirstFila2(&readyQueue) == 0) {
         printf("[dispatch] Last thread tid: %d\n", currentThread->tid);
-        currentThread = GetAtIteratorFila2(&aptos);
+        currentThread = (TCB_t *) GetAtIteratorFila2(&readyQueue);
         printf("[dispatch] Current thread tid: %d\n", currentThread->tid);
         setcontext(&currentThread->context);
-        DeleteAtIteratorFila2(&aptos);
+        DeleteAtIteratorFila2(&readyQueue);
     } else {
-        printf("[dispatch] The ready queue is empty\n")
+        printf("[dispatch] The ready queue is empty\n");
     }
     return;
 }
@@ -44,43 +33,39 @@ void dispatch(){
 void endThreadProc(){
 
 	printf("[Finishing thread] TID = %d\n", currentThread->tid);
-
-	lookForTidinBlockedQueue(); //procura na fila de bloqueados alguma thread que esteja esperando pela que acabou
-
 	free(currentThread);
 	currentThread = NULL;
-
 	dispatch();
-
 }
 
 void boot(){
-    printf("[boot] Starting proc\n");
+  printf("[boot] Starting proc\n");
 
-    printf("[boot] Creating main thread\n");
+  printf("[boot] Creating main thread\n");
 	mainThread = (TCB_t*) malloc(sizeof(TCB_t));
 	mainThread->tid = 0;
 	mainThread->prio = 0;
 	mainThread->state = 0;
 	getcontext(&mainThread->context);
 	currentThread = mainThread;
-    printf("[boot] Created main thread\n");
+  printf("[boot] Created main thread\n");
 
-    printf("[boot] Creating end thread\n");
-    getcontext(&endThread);
-	endThread.uc_link = 0;
-	endThread.uc_stack.ss_sp = (char*) malloc(stackSize);
-	endThread.uc_stack.ss_size = stackSize;
-	makecontext(&endThread, (void(*)(void))endThreadProc, 0);
+  printf("[boot] Creating end thread\n");
+  endThread = (TCB_t*) malloc(sizeof(TCB_t));
+  getcontext(&endThread->context);
+	endThread->context.uc_link = 0;
+	endThread->context.uc_stack.ss_sp = (char*) malloc(stackSize);
+	endThread->context.uc_stack.ss_size = stackSize;
+	makecontext(&endThread->context, (void(*)(void))endThreadProc, 0);
 	printf("[boot] Created end thread\n");
 
 	printf("[boot] Starting ready and blocked queues\n");
-	CreateFila2(readyQueue);
-	CreateFila2(blockedQueue);
+	CreateFila2(&readyQueue);
+	CreateFila2(&blockedQueue);
 	printf("[boot] Queues started\n");
 
 	isBooted = true;
-	return
+	return;
 }
 
 
@@ -98,7 +83,7 @@ int ccreate (void *(*start) (void*), void *arg, int prio){
 
 	newThread->prio = prio;
 	newThread->tid = currentThread->tid++;;
-	newThread->state = stateApto;
+	newThread->state = PROCST_APTO;
 	getcontext(&(newThread->context));
 
 	/*
@@ -116,11 +101,10 @@ int ccreate (void *(*start) (void*), void *arg, int prio){
         int       ss_flags    flags
 	}
 	*/
-	newThread->context.uc_link = &endThread;
+	newThread->context.uc_link = &endThread->context;
 	newThread->context.uc_stack.ss_sp = (char*) malloc(stackSize);
 	newThread->context.uc_stack.ss_size = stackSize;
 	makecontext(&(newThread->context), (void (*) (void))start, arg, prio);
-    AppendFila2(readyQueue, newThread);
+  AppendFila2(&readyQueue, newThread);
 	return newThread->tid;
 }
-
