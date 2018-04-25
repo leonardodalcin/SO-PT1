@@ -14,28 +14,38 @@ FILA2 readyQueue;
 FILA2 blockedQueue;
 TCB_t *currentThread;
 TCB_t *mainThread;
+TCB_t *dispatchThread;
 TCB_t *endThread;
 
 void dispatch(){
-    printf("[dispatch] Starting dispatch proc\n");
-    if(FirstFila2(&readyQueue) == 0) {
-        printf("[dispatch] Last thread tid: %d\n", currentThread->tid);
-        currentThread = (TCB_t *) GetAtIteratorFila2(&readyQueue);
-        printf("[dispatch] Current thread tid: %d\n", currentThread->tid);
+  printf("[dispatch] Starting dispatch proc\n");
+  if(FirstFila2(&readyQueue) == 0) {
+      printf("[dispatch] There is something in the queue\n");
+      if(currentThread) printf("[dispatch] Last thread tid: %d\n", currentThread->tid);
+      currentThread = (TCB_t *) GetAtIteratorFila2(&readyQueue);
+      DeleteAtIteratorFila2(&readyQueue);
+      currentThread->state = PROCST_EXEC;
+      if(currentThread) printf("[dispatch] Current thread tid: %d\n", currentThread->tid);
         setcontext(&currentThread->context);
-        DeleteAtIteratorFila2(&readyQueue);
-    } else {
-        printf("[dispatch] The ready queue is empty\n");
-    }
-    return;
+   } else {
+     printf("[dispatch] Queue is empty\n");
+     return;
+   }
+}
+
+void dispatchThreadProc(){
+	printf("[Dispatch Thread Proc] TID = %d\n", currentThread->tid);
+  currentThread = NULL;
+  dispatch();
+  return;
 }
 
 void endThreadProc(){
-
 	printf("[Finishing thread] TID = %d\n", currentThread->tid);
-	free(currentThread);
-	currentThread = NULL;
-	dispatch();
+  free(currentThread);
+  currentThread = NULL;
+  dispatch();
+  return;
 }
 
 void boot(){
@@ -45,10 +55,19 @@ void boot(){
 	mainThread = (TCB_t*) malloc(sizeof(TCB_t));
 	mainThread->tid = 0;
 	mainThread->prio = 0;
-	mainThread->state = 0;
+	mainThread->state = PROCST_CRIACAO;
 	getcontext(&mainThread->context);
-	currentThread = mainThread;
+  currentThread = mainThread;
   printf("[boot] Created main thread\n");
+
+  printf("[boot] Creating dispatch thread\n");
+  dispatchThread = (TCB_t*) malloc(sizeof(TCB_t));
+  getcontext(&dispatchThread->context);
+  dispatchThread->context.uc_link = 0;
+  dispatchThread->context.uc_stack.ss_sp = (char*) malloc(stackSize);
+  dispatchThread->context.uc_stack.ss_size = stackSize;
+  makecontext(&dispatchThread->context, (void(*)(void))dispatchThreadProc, 0);
+  printf("[boot] Created end thread\n");
 
   printf("[boot] Creating end thread\n");
   endThread = (TCB_t*) malloc(sizeof(TCB_t));
@@ -64,47 +83,93 @@ void boot(){
 	CreateFila2(&blockedQueue);
 	printf("[boot] Queues started\n");
 
-	isBooted = true;
 	return;
 }
 
-
-
 int ccreate (void *(*start) (void*), void *arg, int prio){
-    printf("[ccreate] Starting proc\n");
+  printf("[ccreate] Starting proc\n");
 	if(!isBooted) {
-        printf("[ccreate] System is not booted\n");
-        printf("[ccreate] Starting boot proc\n");
-        boot();
+      printf("[ccreate] System is not booted\n");
+      boot();
 	}
-	printf("[ccreate] Creating new thread\n");
-    prio = 0;
-	TCB_t *newThread = (TCB_t*) malloc(sizeof(TCB_t));
 
-	newThread->prio = prio;
-	newThread->tid = currentThread->tid++;;
+  printf("[ccreate] Creating new thread\n");
+  TCB_t *newThread = (TCB_t*) malloc(sizeof(TCB_t));
+  newThread->prio = 0;
+	newThread->tid = currentThread->tid + 1;
 	newThread->state = PROCST_APTO;
 	getcontext(&(newThread->context));
-
-	/*
-	ucontext_t *uc_link     pointer to the context that will be resumed
-                            this context returns
-    sigset_t    uc_sigmask  the set of signals that are blocked when this
-                            context is active
-    stack_t     uc_stack    the stack used by this context
-    mcontext_t  uc_mcontext a machine-specific representation of the saved
-                            context
-
-	stack_t {
-        void     *ss_sp       stack base or pointer
-        size_t    ss_size     stack size
-        int       ss_flags    flags
-	}
-	*/
-	newThread->context.uc_link = &endThread->context;
+  newThread->context.uc_link = &endThread->context;
 	newThread->context.uc_stack.ss_sp = (char*) malloc(stackSize);
 	newThread->context.uc_stack.ss_size = stackSize;
-	makecontext(&(newThread->context), (void (*) (void))start, arg, prio);
-  AppendFila2(&readyQueue, newThread);
+	makecontext(&newThread->context, (void (*) (void))start, 1, arg);
+  AppendFila2(&readyQueue,newThread);
+
+  if(!isBooted) {
+    isBooted = true;
+    dispatch();
+  } else {
+    cyield();
+  }
+
+
+  printf("[ccreate] Returning thread ID\n");
 	return newThread->tid;
 }
+
+// Retorno:
+// Quando executada corretamente: retorna 0 (zero)
+// Caso contrário, retorna um valor negativo.
+int cyield(){
+  printf("[cyeld] Starting proc\n");
+	currentThread->state = PROCST_APTO;
+  AppendFila2(&readyQueue, currentThread);
+  swapcontext(&currentThread->context, &dispatchThread->context);
+	return 0;
+}
+
+//  Sincronização de término: uma thread pode ser bloqueada até que outra
+//  termine sua execução usando a função cjoin. A função cjoin recebe como
+//  parâmetro o identificador da thread cujo término está sendo aguardado.
+//  Quando essa thread terminar, a função cjoin retorna com um valor inteiro
+//  indicando o sucesso ou não de sua execução. Uma determinada thread só pode
+//  ser esperada por uma única outra thread. Se duas ou mais threads fizerem
+//  cjoin para uma mesma thread, apenas a primeira que realizou a chamada
+//  será bloqueada. As outras chamadas retornarão imediatamente com um código
+//  de erro e seguirão sua execução. Se cjoin for feito para uma thread que não
+//  existe (não foi criada ou já terminou), a função retornará imediatamente com
+//  um código de erro. Observe que não há necessidade de um estado zombie, pois a
+//  thread que aguarda o término de outra (a que fez cjoin) não recupera nenhuma
+//  informação de retorno proveniente da thread aguardada.
+
+// int findInQueueByAtribute(int atributeValue, FILA2 queue, atribute){
+// 	while(GetAtIteratorFila2(&queue) != NULL){
+// 		TCB_t *threadInQueue = (TCB_t *) GetAtIteratorFila2(&queue);
+//     switch(atribute) {
+//       case "tid":
+//         if(threadInQueue->tid == atributeValue){
+//     			return threadInQueue
+//     		}break;
+//       case "joinid"
+//         if(threadInQueue->joinid == atributeValue){
+//     			return threadInQueue;
+//     		}
+//       break;
+//       default: return NULL;
+//     }
+// 		if(NextFila2(&queue) != 0)
+// 			return NULL;
+// 	}
+//   return NULL;
+// }
+//
+// int cjoin(int tid){
+//   TCB_t foundThread = findInQueueByAtribute(tid, readyQueue, "tid")) || findInQueueByAtribute(tid, bloquedQueue, "tid");
+//   if(foundThread) {
+//       foundThread->isJoined = true;
+//       currentThread->joinid = foundThread->tid;
+//
+//   } else {
+//     return -1;
+//   }
+// }
