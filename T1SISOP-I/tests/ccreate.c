@@ -10,26 +10,23 @@
 
 
 
-void* func1() {
-	printf(">>>>>>>>2 \n");
-	cyield();
 
-printf(">>>>>>>>5\n");
+
+void* func1() {
+  printf("Eu sou a thread ID1 antes do yield \n");
+	cjoin(1);
+
+  printf("Eu sou a thread ID1 depois do yield \n");
+
 }
 
 void* func0() {
-	printf(">>>>>>>>1\n");
+	printf("Eu sou a thread ID0 antes do yield \n");
+	int id0 = ccreate(func1, (void *) NULL, 0);
 
-	int id3 = ccreate(func1, (void *) NULL, 0);
-	printf(">>>>>>>>3\n");
-	cyield();
-	printf(">>>>>>>>5\n");
+  printf("Eu sou a thread ID0 depois do yield \n");
 }
 
-void* func2() {
-
-	printf("Eu sou a thread ID2 \n");
-}
 
 int main(int argc, char *argv[]) {
 

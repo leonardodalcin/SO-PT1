@@ -8,8 +8,9 @@
 #include "../include/cdata.h"
 #define stackSize SIGSTKSZ
 
-typedef enum { false, true } bool;
+
 bool isBooted = false;
+bool cyieldShouldBlock = false;
 FILA2 readyQueue;
 FILA2 blockedQueue;
 TCB_t *currentThread;
@@ -33,6 +34,23 @@ void dispatch(){
    }
 }
 
+TCB_t* findInQueueByTid(int tid, FILA2 queue, bool shouldRemove){
+  printf("[findInQueueByTid] Starting proc\n");
+  if(FirstFila2(&queue) == 0) {
+    while(GetAtIteratorFila2(&queue) != NULL){
+  		TCB_t *threadInQueue = (TCB_t *) GetAtIteratorFila2(&queue);
+        if(threadInQueue->tid == tid) {
+          if(shouldRemove) DeleteAtIteratorFila2(&queue);
+            printf("[findInQueueByTid] found proc %d\n", threadInQueue->tid);
+    			return threadInQueue;
+        }
+        if(NextFila2(&queue) != 0)
+    			return NULL;
+    }
+	}
+  return NULL;
+}
+
 void dispatchThreadProc(){
 	printf("[Dispatch Thread Proc] TID = %d\n", currentThread->tid);
   currentThread = NULL;
@@ -40,8 +58,18 @@ void dispatchThreadProc(){
   return;
 }
 
+void unjoin(int tid){
+	currentThread->isJoined = false;
+  currentThread->jointid = NULL;
+  TCB_t* unjoinedThread = findInQueueByTid(tid, blockedQueue, 1);
+  if(!unjoinedThread) return;
+  else AppendFila2(&readyQueue, unjoinedThread);
+  return;
+}
+
 void endThreadProc(){
 	printf("[Finishing thread] TID = %d\n", currentThread->tid);
+  if(currentThread->isJoined) unjoin(currentThread->tid);
   free(currentThread);
   currentThread = NULL;
   dispatch();
@@ -123,7 +151,10 @@ int ccreate (void *(*start) (void*), void *arg, int prio){
 int cyield(){
   printf("[cyeld] Starting proc\n");
 	currentThread->state = PROCST_APTO;
-  AppendFila2(&readyQueue, currentThread);
+  if(cyieldShouldBlock) {
+    cyieldShouldBlock = false;
+    AppendFila2(&readyQueue, currentThread);
+  } else AppendFila2(&blockedQueue, currentThread);
   swapcontext(&currentThread->context, &dispatchThread->context);
 	return 0;
 }
@@ -142,34 +173,19 @@ int cyield(){
 //  thread que aguarda o término de outra (a que fez cjoin) não recupera nenhuma
 //  informação de retorno proveniente da thread aguardada.
 
-// int findInQueueByAtribute(int atributeValue, FILA2 queue, atribute){
-// 	while(GetAtIteratorFila2(&queue) != NULL){
-// 		TCB_t *threadInQueue = (TCB_t *) GetAtIteratorFila2(&queue);
-//     switch(atribute) {
-//       case "tid":
-//         if(threadInQueue->tid == atributeValue){
-//     			return threadInQueue
-//     		}break;
-//       case "joinid"
-//         if(threadInQueue->joinid == atributeValue){
-//     			return threadInQueue;
-//     		}
-//       break;
-//       default: return NULL;
-//     }
-// 		if(NextFila2(&queue) != 0)
-// 			return NULL;
-// 	}
-//   return NULL;
-// }
-//
-// int cjoin(int tid){
-//   TCB_t foundThread = findInQueueByAtribute(tid, readyQueue, "tid")) || findInQueueByAtribute(tid, bloquedQueue, "tid");
-//   if(foundThread) {
-//       foundThread->isJoined = true;
-//       currentThread->joinid = foundThread->tid;
-//
-//   } else {
-//     return -1;
-//   }
-// }
+
+
+int cjoin(int tid){
+  printf("[cjoin] Starting proc\n");
+  TCB_t* foundThread = (TCB_t*) findInQueueByTid(tid, readyQueue,false) || findInQueueByTid(tid, blockedQueue,false);
+  if(foundThread && !foundThread->isJoined) {
+      printf("[cjoin] Found thread\n");
+      foundThread->isJoined = true;
+      foundThread->jointid = currentThread->tid;
+      cyieldShouldBlock = true;
+      cyield();
+      return 1;
+  } else {
+    return -1;
+  }
+}
