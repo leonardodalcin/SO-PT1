@@ -13,18 +13,18 @@
 
 
 void* func1() {
-  printf("Eu sou a thread ID1 antes do yield \n");
-	cjoin(1);
+  printf("2 \n");
+	cyield();
 
-  printf("Eu sou a thread ID1 depois do yield \n");
+  printf("4 \n");
 
 }
 
 void* func0() {
-	printf("Eu sou a thread ID0 antes do yield \n");
+	printf("1 \n");
 	int id0 = ccreate(func1, (void *) NULL, 0);
 
-  printf("Eu sou a thread ID0 depois do yield \n");
+  printf("3 \n");
 }
 
 

@@ -153,8 +153,8 @@ int cyield(){
 	currentThread->state = PROCST_APTO;
   if(cyieldShouldBlock) {
     cyieldShouldBlock = false;
-    AppendFila2(&readyQueue, currentThread);
-  } else AppendFila2(&blockedQueue, currentThread);
+    AppendFila2(&blockedQueue, currentThread);
+  } else AppendFila2(&readyQueue, currentThread);
   swapcontext(&currentThread->context, &dispatchThread->context);
 	return 0;
 }
