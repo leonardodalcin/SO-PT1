@@ -14,16 +14,13 @@
 
 void* func1() {
   printf("2 \n");
-	cyield();
-
+	cjoin(3);
   printf("4 \n");
-
 }
 
 void* func0() {
 	printf("1 \n");
 	int id0 = ccreate(func1, (void *) NULL, 0);
-
   printf("3 \n");
 }
 

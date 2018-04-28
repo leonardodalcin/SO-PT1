@@ -10,9 +10,10 @@
 
 
 bool isBooted = false;
-bool cyieldShouldBlock = false;
 FILA2 readyQueue;
 FILA2 blockedQueue;
+FILA2 suspendedReadyQueue;
+FILA2 suspendedBlockedQueue;
 TCB_t *currentThread;
 TCB_t *mainThread;
 TCB_t *dispatchThread;
@@ -41,14 +42,14 @@ TCB_t* findInQueueByTid(int tid, FILA2 queue, bool shouldRemove){
   		TCB_t *threadInQueue = (TCB_t *) GetAtIteratorFila2(&queue);
         if(threadInQueue->tid == tid) {
           if(shouldRemove) DeleteAtIteratorFila2(&queue);
-            printf("[findInQueueByTid] found proc %d\n", threadInQueue->tid);
+          printf("[findInQueueByTid] found proc %d\n", threadInQueue->tid);
     			return threadInQueue;
         }
         if(NextFila2(&queue) != 0)
-    			return NULL;
+    			return -1;
     }
 	}
-  return NULL;
+  return -1;
 }
 
 void dispatchThreadProc(){
@@ -58,18 +59,20 @@ void dispatchThreadProc(){
   return;
 }
 
-void unjoin(int tid){
+void unblock(int tid){
+  printf("[unblock] TID = %d\n", tid);
 	currentThread->isJoined = false;
   currentThread->jointid = NULL;
-  TCB_t* unjoinedThread = findInQueueByTid(tid, blockedQueue, 1);
-  if(!unjoinedThread) return;
-  else AppendFila2(&readyQueue, unjoinedThread);
+  TCB_t* unblockedThread = findInQueueByTid(tid, blockedQueue, 1);
+  printf("[unblock] Found blocked thread TID = %d\n", unblockedThread->tid);
+  if(!unblockedThread) return;
+  else AppendFila2(&readyQueue, unblockedThread);
   return;
 }
 
 void endThreadProc(){
 	printf("[Finishing thread] TID = %d\n", currentThread->tid);
-  if(currentThread->isJoined) unjoin(currentThread->tid);
+  if(currentThread->isJoined) unblock(currentThread->jointid);
   free(currentThread);
   currentThread = NULL;
   dispatch();
@@ -109,6 +112,8 @@ void boot(){
 	printf("[boot] Starting ready and blocked queues\n");
 	CreateFila2(&readyQueue);
 	CreateFila2(&blockedQueue);
+  CreateFila2(&suspendedReadyQueue);
+  CreateFila2(&suspendedBlockedQueue);
 	printf("[boot] Queues started\n");
 
 	return;
@@ -151,10 +156,7 @@ int ccreate (void *(*start) (void*), void *arg, int prio){
 int cyield(){
   printf("[cyeld] Starting proc\n");
 	currentThread->state = PROCST_APTO;
-  if(cyieldShouldBlock) {
-    cyieldShouldBlock = false;
-    AppendFila2(&blockedQueue, currentThread);
-  } else AppendFila2(&readyQueue, currentThread);
+  AppendFila2(&readyQueue, currentThread);
   swapcontext(&currentThread->context, &dispatchThread->context);
 	return 0;
 }
@@ -173,19 +175,81 @@ int cyield(){
 //  thread que aguarda o término de outra (a que fez cjoin) não recupera nenhuma
 //  informação de retorno proveniente da thread aguardada.
 
-
-
 int cjoin(int tid){
   printf("[cjoin] Starting proc\n");
-  TCB_t* foundThread = (TCB_t*) findInQueueByTid(tid, readyQueue,false) || findInQueueByTid(tid, blockedQueue,false);
-  if(foundThread && !foundThread->isJoined) {
+  TCB_t* foundThread;
+  TCB_t* foundInReady = (TCB_t*) findInQueueByTid(tid, readyQueue,false);
+  TCB_t* foundInBlocked = (TCB_t*) findInQueueByTid(tid, blockedQueue,false);
+  if(foundInReady) {
+    foundThread = foundInReady;
+  } else if(foundInBlocked) {
+    foundThread = foundInBlocked;
+  }
+  if((foundThread != -1) && (!foundThread->isJoined)) {
       printf("[cjoin] Found thread\n");
       foundThread->isJoined = true;
       foundThread->jointid = currentThread->tid;
-      cyieldShouldBlock = true;
-      cyield();
+      AppendFila2(&blockedQueue, currentThread);
+      swapcontext(&currentThread->context, &dispatchThread->context);
       return 1;
   } else {
+    printf("[cjoin] ERROR -> Thread TID: %d does not exist\n", tid);
     return -1;
   }
 }
+
+/*Suspensão e retomada de execução: uma thread pode ser suspensa por outra thread a qualquer momento
+através da execução da primitiva csuspend, passando como argumento o identificador da thread a ser suspensa.
+A suspensão de uma thread leva-a do estado apto para o estado apto-suspenso ou do estado bloqueado para o estado
+bloqueado- suspenso. Uma thread não pode se auto-suspender.
+Uma vez suspensa, a thread fica no estado correspondente até que outra thread a retire desse estado usando a primitiva cresume,
+passando como argumento o identificador da thread que terá seu estado alterado. Portanto, a execução de cresume faz com que uma
+thread passe do estado apto-suspenso para o estado apto ou do estado bloqueado-suspenso para o estado bloqueado.
+ATENÇÃO: conforme está indicado no diagrama de estados, se ocorrer um evento esperado (término de outra thread, cjoin ou a
+liberação de um recurso com csignal) enquanto uma thread estiver no estado bloqueado-suspenso, a thread deve ser posta no estado
+apto-suspenso.
+Se for passado como parâmetro para as chamadas csuspend e cresume um identificador inválido de thread (thread inexistente ou o
+próprio identificador da thread que as executa), a função deve retornar um código de erro.*/
+int csuspend(int tid) {
+  printf("[csuspend] Starting proc\n");
+  TCB_t* foundThread;
+  TCB_t* foundInReady = (TCB_t*) findInQueueByTid(tid, readyQueue, true);
+  TCB_t* foundInBlocked = (TCB_t*) findInQueueByTid(tid, blockedQueue, true);
+  if(foundInReady) {
+    foundThread = foundInReady;
+  } else if(foundInBlocked) {
+    foundThread = foundInBlocked;
+  }
+  if(foundThread != -1) {
+      printf("[csuspend] Found thread\n");
+      if(foundInReady) AppendFila2(&suspendedReadyQueue, foundThread);
+      else AppendFila2(&suspendedBlockedQueue, foundThread);
+      swapcontext(&currentThread->context, &dispatchThread->context);
+      return 0;
+  } else {
+    printf("[csuspend] ERROR -> Thread TID: %d does not exist in queues\n", tid);
+    return -1;
+  }
+}
+
+int cresume(int tid) {
+  printf("[cresume] Starting proc\n");
+  TCB_t* foundThread;
+  TCB_t* foundInSuspendedReady = (TCB_t*) findInQueueByTid(tid, suspendedReadyQueue, true);
+  TCB_t* foundInSuspendedBlocked = (TCB_t*) findInQueueByTid(tid, suspendedBlockedQueue, true);
+  if(foundInSuspendedReady) {
+    foundThread = foundInSuspendedReady;
+  } else if(foundInSuspendedBlocked) {
+    foundThread = foundInSuspendedBlocked;
+  }
+  if(foundThread != -1) {
+      printf("[cresume] Found thread\n");
+      if(foundInSuspendedReady) AppendFila2(&readyQueue, foundThread);
+      else AppendFila2(&blockedQueue, foundThread);
+      swapcontext(&currentThread->context, &dispatchThread->context);
+      return 0;
+  } else {
+    printf("[cresume] ERROR -> Thread TID: %d does not exist in queues\n", tid);
+    return -1;
+  }
+};
