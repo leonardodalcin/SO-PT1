@@ -252,4 +252,93 @@ int cresume(int tid) {
     printf("[cresume] ERROR -> Thread TID: %d does not exist in queues\n", tid);
     return -1;
   }
-};
+}
+
+// o sistema prevê o emprego de uma variável especial para realizar a sincronização de acesso a recursos compartilhados
+// (por exemplo, uma seção crítica). As primitivas existentes são csem_init, cwait e csignal,
+// e usam uma variável especial que recebe o nome específico de semáforo.
+// A primitiva csem_init é usada para inicializar a variável csem_t e deve ser chamada,
+// obrigatoriamente, antes que essa variável possa ser usada com as primitivas cwait e csignal.
+
+// a função csem_init inicializa uma variável do tipo csem_t e consiste em fornecer um valor inteiro (count),
+// positivo ou negativo, que representa a quantidade existente do recurso controlado pelo semáforo.
+// Para realizar exclusão mútua, esse valor inicial da variável semáforo deve ser 1 (semáforo binário).
+// Ainda, cada variável semáforo deve ter associado uma estrutura que registre as threads que estão bloqueadas,
+// esperando por sua liberação. Na inicialização essa lista deve estar vazia.
+
+    int csem_init (csem_t *sem, int count){
+      printf("[csem_init] Starting proc\n");
+        printf("[csem_init] Initializing sem\n");
+        sem->count = 1;
+        sem->fila  = (FILA2 *)malloc(sizeof(FILA2));
+
+        if(CreateFila2(sem->fila) != 0){
+            printf("[csem_init] Failed to create queue\n");
+            return -1;
+        }
+      return 0;
+  }
+
+  // a primitiva cwait será usada para solicitar um recurso.
+  // Se o recurso estiver livre, ele é atribuído a thread, que continuará a sua execução normalmente;
+  // caso contrário a thread será bloqueada e posta a espera desse recurso na fila.
+  // Se na chamada da função o valor de count for menor ou igual a zero,
+  // a thread deverá ser posta no estado bloqueado e colocada na fila associada a variável semáforo.
+  // Para cada chamada a cwait a variável count da estrutura semáforo é decrementada de uma unidade.
+
+    int cwait (csem_t *sem){
+        printf("[cwait] Starting proc\n");
+
+        sem->count--;
+        if(sem->count < 0){
+            currentThread->state = PROCST_BLOQ;
+            if(AppendFila2(sem->fila, (void *) exec) != 0){
+                printf("[cwait] Failed to Append Queue \n");
+                return -1;
+            }
+            swapcontext(&exec->context, &dispatch_ctx);
+        }
+
+        return 0;
+  }
+//: a chamada csignal serve para indicar que a thread está liberando o recurso.
+// Para cada chamada da primitiva csignal, a variável count deverá ser incrementada de uma unidade.
+// Se houver mais de uma thread bloqueada a espera desse recurso a primeira delas, segundo uma política de FIFO,
+// deverá passar para o estado apto e as demais devem continuar no estado bloqueado.
+
+    int csignal (csem_t *sem){
+        printf("[csignal] Starting proc\n");
+        sem->count++;
+        if(FirstFila2(sem->fila) == 0){
+            TCB_t *t_des = (TCB_t *) GetAtIteratorFila2(sem->fila);
+            t_des->state = PROCST_APTO;
+
+            AppendFila2 (&readyQueue, t_des);
+
+            if(DeleteAtIteratorFila2(sem->fila) != 0){
+                printf("Failed to delete\n");
+                return -1;
+            }
+
+        }
+        return 0;
+    }
+// Além das funções de manipulação das threads e de sincronização a biblioteca deverá prover a implementação
+// de uma função que forneça o nome dos alunos integrantes do grupo
+// que desenvolveu a biblioteca chtread. O protótipo dessa função é:
+
+    int cidentify (char *name, int size){
+        printf("[cidentify] Starting proc\n");
+        name = "Gustavo Correa\t00252868\n Andreo Barros\t00252869\n Leonardo Dalcin\tcartao\n";
+        if(sizeof(name) < size)
+
+            if(puts(name))
+                return 0;
+            else
+                return -1;
+        else
+            return -1;
+        return 0;
+  }
+
+
