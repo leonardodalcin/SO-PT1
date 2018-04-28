@@ -10,26 +10,20 @@
 
 
 
-void* func1() {
-	printf(">>>>>>>>2 \n");
-	cyield();
 
-printf(">>>>>>>>5\n");
+
+void* func1() {
+  printf("2 \n");
+	cjoin(3);
+  printf("4 \n");
 }
 
 void* func0() {
-	printf(">>>>>>>>1\n");
-
-	int id3 = ccreate(func1, (void *) NULL, 0);
-	printf(">>>>>>>>3\n");
-	cyield();
-	printf(">>>>>>>>5\n");
+	printf("1 \n");
+	int id0 = ccreate(func1, (void *) NULL, 0);
+  printf("3 \n");
 }
 
-void* func2() {
-
-	printf("Eu sou a thread ID2 \n");
-}
 
 int main(int argc, char *argv[]) {
 

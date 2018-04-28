@@ -22,6 +22,7 @@
 /* Os campos "tid", "state" e "context" dessa estrutura devem ser mantidos e usados convenientemente
    Pode-se acrescentar outros campos AP�S os campos obrigat�rios dessa estrutura
 */
+typedef enum { false, true } bool;
 typedef struct s_TCB {
 	int		tid; 		// identificador da thread
 	int		state;		// estado em que a thread se encontra
@@ -29,7 +30,9 @@ typedef struct s_TCB {
 	int 		prio;		// Prioridade associada a thread N�O USADO NESSA IMPLEMENTA��O
 	ucontext_t 	context;	// contexto de execu��o da thread (SP, PC, GPRs e recursos)
 
-	/* Se necess�rio, pode-se acresecentar campos nessa estrutura A PARTIR DAQUI! */	
+	/* Se necess�rio, pode-se acresecentar campos nessa estrutura A PARTIR DAQUI! */
+	bool isJoined;
+	int jointid;
 } TCB_t;
 
 

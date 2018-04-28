@@ -10,21 +10,14 @@
 
 void* func0() {
 	printf("Eu sou a thread ID0 antes do yield \n");
-  cyield();
   printf("Eu sou a thread ID0 depois do yield \n");
 }
 
 void* func1() {
   printf("Eu sou a thread ID1 antes do yield \n");
-  cyield();
+	cjoin(0);
   printf("Eu sou a thread ID1 depois do yield \n");
 
-}
-
-void* func2() {
-  printf("Eu sou a thread ID2 antes do yield \n");
-  cyield();
-  printf("Eu sou a thread ID2 depois do yield \n");
 }
 
 int main(int argc, char *argv[]) {
