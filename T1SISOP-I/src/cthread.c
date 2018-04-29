@@ -269,7 +269,7 @@ int cresume(int tid) {
     int csem_init (csem_t *sem, int count){
       printf("[csem_init] Starting proc\n");
         printf("[csem_init] Initializing sem\n");
-        sem->count = 1;
+        sem->count = count;
         sem->fila  = (FILA2 *)malloc(sizeof(FILA2));
 
         if(CreateFila2(sem->fila) != 0){
@@ -292,11 +292,11 @@ int cresume(int tid) {
         sem->count--;
         if(sem->count < 0){
             currentThread->state = PROCST_BLOQ;
-            if(AppendFila2(sem->fila, (void *) exec) != 0){
+            if(AppendFila2(sem->fila, (void *) currentThread) != 0){
                 printf("[cwait] Failed to Append Queue \n");
                 return -1;
             }
-            swapcontext(&exec->context, &dispatch_ctx);
+            swapcontext(&currentThread->context, &dispatchThread->context);
         }
 
         return 0;
@@ -313,10 +313,10 @@ int cresume(int tid) {
             TCB_t *t_des = (TCB_t *) GetAtIteratorFila2(sem->fila);
             t_des->state = PROCST_APTO;
 
-            AppendFila2 (&readyQueue, t_des);
+            AppendFila2 (&readyQueue, t_des); //n sei se eh isso q eh pra fazer
 
             if(DeleteAtIteratorFila2(sem->fila) != 0){
-                printf("Failed to delete\n");
+                printf("[csignal] Failed to delete iterator\n");
                 return -1;
             }
 
