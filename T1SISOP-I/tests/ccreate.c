@@ -28,7 +28,9 @@ void* func0() {
 int main(int argc, char *argv[]) {
 
 	int id0, id1, id2;
+	char *nomes;
 
+	id1 = cidentify(nomes, 250);
 	id0 = ccreate(func0, (void *) NULL, 0);
 	printf("Eu sou a thread de TID: %d\n", id0);
 
