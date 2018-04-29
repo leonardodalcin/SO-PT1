@@ -329,7 +329,7 @@ int cresume(int tid) {
 
     int cidentify (char *name, int size){
         printf("[cidentify] Starting proc\n");
-        name = "Gustavo Correa\t00252868\n Andreo Barros\t00252869\n Leonardo Dalcin\t00243654\n";
+        name = "Gustavo Correa\t00252868\nAndreo Barros\t00252869\nLeonardo Dalcin\t00243654\n";
         if(sizeof(name) < size)
 
             if(puts(name))
@@ -338,7 +338,7 @@ int cresume(int tid) {
                 return -1;
         else
             return -1;
-        return 0;
+
   }
 
 
