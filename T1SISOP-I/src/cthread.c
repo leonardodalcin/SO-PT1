@@ -145,7 +145,6 @@ int ccreate (void *(*start) (void*), void *arg, int prio){
     cyield();
   }
 
-
   printf("[ccreate] Returning thread ID\n");
 	return newThread->tid;
 }
@@ -266,79 +265,72 @@ int cresume(int tid) {
 // Ainda, cada variável semáforo deve ter associado uma estrutura que registre as threads que estão bloqueadas,
 // esperando por sua liberação. Na inicialização essa lista deve estar vazia.
 
-    int csem_init (csem_t *sem, int count){
-      printf("[csem_init] Starting proc\n");
-        printf("[csem_init] Initializing sem\n");
-        sem->count = count;
-        sem->fila  = (FILA2 *)malloc(sizeof(FILA2));
+int csem_init (csem_t *sem, int count){
+  printf("[csem_init] Starting proc\n");
+  printf("[csem_init] Initializing sem\n");
+  sem->count = count;
+  sem->fila  = (FILA2 *)malloc(sizeof(FILA2));
 
-        if(CreateFila2(sem->fila) != 0){
-            printf("[csem_init] Failed to create queue\n");
-            return -1;
-        }
-      return 0;
+  if(CreateFila2(sem->fila) != 0){
+    printf("[csem_init] Failed to create queue\n");
+    return -1;
   }
+  return 0;
+}
 
-  // a primitiva cwait será usada para solicitar um recurso.
-  // Se o recurso estiver livre, ele é atribuído a thread, que continuará a sua execução normalmente;
-  // caso contrário a thread será bloqueada e posta a espera desse recurso na fila.
-  // Se na chamada da função o valor de count for menor ou igual a zero,
-  // a thread deverá ser posta no estado bloqueado e colocada na fila associada a variável semáforo.
-  // Para cada chamada a cwait a variável count da estrutura semáforo é decrementada de uma unidade.
+// a primitiva cwait será usada para solicitar um recurso.
+// Se o recurso estiver livre, ele é atribuído a thread, que continuará a sua execução normalmente;
+// caso contrário a thread será bloqueada e posta a espera desse recurso na fila.
+// Se na chamada da função o valor de count for menor ou igual a zero,
+// a thread deverá ser posta no estado bloqueado e colocada na fila associada a variável semáforo.
+// Para cada chamada a cwait a variável count da estrutura semáforo é decrementada de uma unidade.
 
-    int cwait (csem_t *sem){
-        printf("[cwait] Starting proc\n");
-
-        sem->count--;
-        if(sem->count < 0){
-            currentThread->state = PROCST_BLOQ;
-            if(AppendFila2(sem->fila, (void *) currentThread) != 0){
-                printf("[cwait] Failed to Append Queue \n");
-                return -1;
-            }
-            swapcontext(&currentThread->context, &dispatchThread->context);
-        }
-
-        return 0;
+int cwait (csem_t *sem){
+  printf("[cwait] Starting proc\n");
+  sem->count--;
+  if(sem->count < 0){
+    currentThread->state = PROCST_BLOQ;
+    if(AppendFila2(sem->fila, (void *) currentThread) != 0){
+      printf("[cwait] Failed to Append Queue \n");
+      return -1;
+    }
+    swapcontext(&currentThread->context, &dispatchThread->context);
   }
+  return 0;
+}
 //: a chamada csignal serve para indicar que a thread está liberando o recurso.
 // Para cada chamada da primitiva csignal, a variável count deverá ser incrementada de uma unidade.
 // Se houver mais de uma thread bloqueada a espera desse recurso a primeira delas, segundo uma política de FIFO,
 // deverá passar para o estado apto e as demais devem continuar no estado bloqueado.
 
-    int csignal (csem_t *sem){
-        printf("[csignal] Starting proc\n");
-        sem->count++;
-        if(FirstFila2(sem->fila) == 0){
-            TCB_t *t_des = (TCB_t *) GetAtIteratorFila2(sem->fila);
-            t_des->state = PROCST_APTO;
+int csignal (csem_t *sem){
+  printf("[csignal] Starting proc\n");
+  sem->count++;
+  if(FirstFila2(sem->fila) == 0){
+    TCB_t *t_des = (TCB_t *) GetAtIteratorFila2(sem->fila);
+    t_des->state = PROCST_APTO;
 
-            AppendFila2 (&readyQueue, t_des); //n sei se eh isso q eh pra fazer
+    AppendFila2 (&readyQueue, t_des); //n sei se eh isso q eh pra fazer
 
-            if(DeleteAtIteratorFila2(sem->fila) != 0){
-                printf("[csignal] Failed to delete iterator\n");
-                return -1;
-            }
-
-        }
-        return 0;
+    if(DeleteAtIteratorFila2(sem->fila) != 0){
+      printf("[csignal] Failed to delete iterator\n");
+      return -1;
     }
+  }
+  return 0;
+}
 // Além das funções de manipulação das threads e de sincronização a biblioteca deverá prover a implementação
 // de uma função que forneça o nome dos alunos integrantes do grupo
 // que desenvolveu a biblioteca chtread. O protótipo dessa função é:
 
-    int cidentify (char *name, int size){
-        printf("[cidentify] Starting proc\n");
-        name = "Gustavo Correa\t00252868\nAndreo Barros\t00252869\nLeonardo Dalcin\t00243654\n";
-        if(sizeof(name) < size)
-
-            if(puts(name))
-                return 0;
-            else
-                return -1;
-        else
-            return -1;
-
-  }
-
-
+int cidentify (char *name, int size){
+  printf("[cidentify] Starting proc\n");
+  name = "Gustavo Correa\t00252868\nAndreo Barros\t00252869\nLeonardo Dalcin\t00243654\n";
+  if(sizeof(name) < size)
+    if(puts(name))
+      return 0;
+    else
+      return -1;
+  else
+    return -1;
+}
