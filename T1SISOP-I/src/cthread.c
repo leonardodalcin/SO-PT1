@@ -8,7 +8,7 @@
 #include "../include/cdata.h"
 #define stackSize SIGSTKSZ
 
-
+int threadIdCount = 0;
 bool isBooted = false;
 FILA2 readyQueue;
 FILA2 blockedQueue;
@@ -35,21 +35,51 @@ void dispatch(){
    }
 }
 
+TCB_t* findInBlockedBySemaphore(csem_t* semaphore, bool shouldRemove){
+  printf("[findInBlockedBySemaphore] Starting proc\n");
+  if(FirstFila2(&blockedQueue) == 0) {
+    while(GetAtIteratorFila2(&blockedQueue) != NULL){
+  		TCB_t *threadInQueue = (TCB_t *) GetAtIteratorFila2(&blockedQueue);
+        if(threadInQueue->isInSemaphore) {
+          printf("[findInBlockedBySemaphore] Found thread in semaphore\n");
+          printf("[findInBlockedBySemaphore] Semaphore count is %d\n", semaphore->count);
+          printf("[findInBlockedBySemaphore] Semaphore address is %d\n", semaphore);
+          printf("[findInBlockedBySemaphore] Thread in queue semaphore address is %d\n", threadInQueue->semaphore);
+          if(threadInQueue->semaphore == semaphore) {
+            printf("[findInBlockedBySemaphore] Thread in queue semaphore address is %d\n", threadInQueue->semaphore);
+
+            if(shouldRemove == true) {
+              printf("[findInBlockedBySemaphore] Thread in queue semaphore address is %d\n", threadInQueue->semaphore);
+
+              DeleteAtIteratorFila2(&blockedQueue);
+            }
+            printf("[findInBlockedBySemaphore] found proc %d\n", threadInQueue->tid);
+      			return threadInQueue;
+          }
+        }
+        if(NextFila2(&blockedQueue) != 0)
+    			return NULL;
+    }
+	}
+  return NULL;
+}
+
 TCB_t* findInQueueByTid(int tid, FILA2 queue, bool shouldRemove){
   printf("[findInQueueByTid] Starting proc\n");
   if(FirstFila2(&queue) == 0) {
     while(GetAtIteratorFila2(&queue) != NULL){
   		TCB_t *threadInQueue = (TCB_t *) GetAtIteratorFila2(&queue);
-        if(threadInQueue->tid == tid) {
-          if(shouldRemove) DeleteAtIteratorFila2(&queue);
-          printf("[findInQueueByTid] found proc %d\n", threadInQueue->tid);
-    			return threadInQueue;
+      if(threadInQueue->tid == tid) {
+        if(shouldRemove == true) {
+          DeleteAtIteratorFila2(&queue);
         }
-        if(NextFila2(&queue) != 0)
-    			return -1;
+        return threadInQueue;
+      } else if(NextFila2(&queue) != 0) {
+        return NULL;
+      }
     }
 	}
-  return -1;
+  return NULL;
 }
 
 void dispatchThreadProc(){
@@ -63,16 +93,20 @@ void unblock(int tid){
   printf("[unblock] TID = %d\n", tid);
 	currentThread->isJoined = false;
   currentThread->jointid = NULL;
-  TCB_t* unblockedThread = findInQueueByTid(tid, blockedQueue, 1);
+  TCB_t* unblockedThread = findInQueueByTid(tid, blockedQueue, true);
+  if (unblockedThread != NULL && unblockedThread->isInSemaphore == true) {
+    printf("[unblock] Trying to unblock thread TID = %d, but it is in semaphore\n", unblockedThread->tid);
+    return;
+  }
   printf("[unblock] Found blocked thread TID = %d\n", unblockedThread->tid);
-  if(!unblockedThread) return;
+  if(unblockedThread == -1) return;
   else AppendFila2(&readyQueue, unblockedThread);
   return;
 }
 
 void endThreadProc(){
 	printf("[Finishing thread] TID = %d\n", currentThread->tid);
-  if(currentThread->isJoined) unblock(currentThread->jointid);
+  if(currentThread->isJoined == true) unblock(currentThread->jointid);
   free(currentThread);
   currentThread = NULL;
   dispatch();
@@ -84,10 +118,18 @@ void boot(){
 
   printf("[boot] Creating main thread\n");
 	mainThread = (TCB_t*) malloc(sizeof(TCB_t));
-	mainThread->tid = 0;
+	mainThread->tid = threadIdCount;
 	mainThread->prio = 0;
-	mainThread->state = PROCST_CRIACAO;
+  mainThread->isInSemaphore = false;
+  mainThread->semaphore = NULL;
+  mainThread->isJoined = false;
+  mainThread->jointid = NULL;
+	mainThread->state = PROCST_EXEC;
 	getcontext(&mainThread->context);
+  mainThread->context.uc_link = &endThreadProc;
+	mainThread->context.uc_stack.ss_sp = (char*) malloc(stackSize);
+	mainThread->context.uc_stack.ss_size = stackSize;
+  makecontext(&mainThread->context, (void(*)(void))endThreadProc, 0);
   currentThread = mainThread;
   printf("[boot] Created main thread\n");
 
@@ -114,6 +156,7 @@ void boot(){
 	CreateFila2(&blockedQueue);
   CreateFila2(&suspendedReadyQueue);
   CreateFila2(&suspendedBlockedQueue);
+  isBooted = true;
 	printf("[boot] Queues started\n");
 
 	return;
@@ -121,29 +164,25 @@ void boot(){
 
 int ccreate (void *(*start) (void*), void *arg, int prio){
   printf("[ccreate] Starting proc\n");
-	if(!isBooted) {
+	if(isBooted == false) {
       printf("[ccreate] System is not booted\n");
       boot();
 	}
 
+  threadIdCount++;
   printf("[ccreate] Creating new thread\n");
   TCB_t *newThread = (TCB_t*) malloc(sizeof(TCB_t));
   newThread->prio = 0;
-	newThread->tid = currentThread->tid + 1;
+	newThread->tid = threadIdCount;
 	newThread->state = PROCST_APTO;
+  newThread->isInSemaphore = false;
+  newThread->semaphore = NULL;
 	getcontext(&(newThread->context));
   newThread->context.uc_link = &endThread->context;
 	newThread->context.uc_stack.ss_sp = (char*) malloc(stackSize);
 	newThread->context.uc_stack.ss_size = stackSize;
-	makecontext(&newThread->context, (void (*) (void))start, 1, arg);
+	makecontext((&newThread->context), (void (*) (void))start, 1, arg);
   AppendFila2(&readyQueue,newThread);
-
-  if(!isBooted) {
-    isBooted = true;
-    dispatch();
-  } else {
-    cyield();
-  }
 
   printf("[ccreate] Returning thread ID\n");
 	return newThread->tid;
@@ -179,18 +218,21 @@ int cjoin(int tid){
   TCB_t* foundThread;
   TCB_t* foundInReady = (TCB_t*) findInQueueByTid(tid, readyQueue,false);
   TCB_t* foundInBlocked = (TCB_t*) findInQueueByTid(tid, blockedQueue,false);
-  if(foundInReady) {
+  if(foundInReady == NULL && foundInBlocked == NULL) {
+    printf("[cjoin] ERROR -> Thread TID: %d does not exist\n", tid);
+    return -1;
+  } else if(foundInReady != NULL){
     foundThread = foundInReady;
-  } else if(foundInBlocked) {
+  } else {
     foundThread = foundInBlocked;
   }
-  if((foundThread != -1) && (!foundThread->isJoined)) {
+  if(foundThread->isJoined == false) {
       printf("[cjoin] Found thread\n");
       foundThread->isJoined = true;
       foundThread->jointid = currentThread->tid;
       AppendFila2(&blockedQueue, currentThread);
       swapcontext(&currentThread->context, &dispatchThread->context);
-      return 1;
+      return 0;
   } else {
     printf("[cjoin] ERROR -> Thread TID: %d does not exist\n", tid);
     return -1;
@@ -214,12 +256,15 @@ int csuspend(int tid) {
   TCB_t* foundThread;
   TCB_t* foundInReady = (TCB_t*) findInQueueByTid(tid, readyQueue, true);
   TCB_t* foundInBlocked = (TCB_t*) findInQueueByTid(tid, blockedQueue, true);
-  if(foundInReady) {
+  if(foundInReady == NULL && foundInBlocked == NULL) {
+    printf("[csuspend] ERROR -> Thread TID: %d does not exist\n", tid);
+    return -1;
+  } else if(foundInReady != NULL){
     foundThread = foundInReady;
-  } else if(foundInBlocked) {
+  } else {
     foundThread = foundInBlocked;
   }
-  if(foundThread != -1) {
+  if(foundThread != NULL) {
       printf("[csuspend] Found thread\n");
       if(foundInReady) AppendFila2(&suspendedReadyQueue, foundThread);
       else AppendFila2(&suspendedBlockedQueue, foundThread);
@@ -236,12 +281,15 @@ int cresume(int tid) {
   TCB_t* foundThread;
   TCB_t* foundInSuspendedReady = (TCB_t*) findInQueueByTid(tid, suspendedReadyQueue, true);
   TCB_t* foundInSuspendedBlocked = (TCB_t*) findInQueueByTid(tid, suspendedBlockedQueue, true);
-  if(foundInSuspendedReady) {
+  if(foundInSuspendedReady == NULL && foundInSuspendedBlocked == NULL) {
+    printf("[cresume] ERROR -> Thread TID: %d does not exist\n", tid);
+    return -1;
+  } else if(foundInSuspendedReady != NULL){
     foundThread = foundInSuspendedReady;
-  } else if(foundInSuspendedBlocked) {
+  } else {
     foundThread = foundInSuspendedBlocked;
   }
-  if(foundThread != -1) {
+  if(foundThread != NULL) {
       printf("[cresume] Found thread\n");
       if(foundInSuspendedReady) AppendFila2(&readyQueue, foundThread);
       else AppendFila2(&blockedQueue, foundThread);
@@ -269,12 +317,7 @@ int csem_init (csem_t *sem, int count){
   printf("[csem_init] Starting proc\n");
   printf("[csem_init] Initializing sem\n");
   sem->count = count;
-  sem->fila  = (FILA2 *)malloc(sizeof(FILA2));
-
-  if(CreateFila2(sem->fila) != 0){
-    printf("[csem_init] Failed to create queue\n");
-    return -1;
-  }
+  sem->fila  = &blockedQueue;
   return 0;
 }
 
@@ -287,15 +330,17 @@ int csem_init (csem_t *sem, int count){
 
 int cwait (csem_t *sem){
   printf("[cwait] Starting proc\n");
-  sem->count--;
-  if(sem->count < 0){
+  if(sem->count <= 0){
     currentThread->state = PROCST_BLOQ;
-    if(AppendFila2(sem->fila, (void *) currentThread) != 0){
+    currentThread->isInSemaphore = true;
+    currentThread->semaphore = sem;
+    if(AppendFila2(&blockedQueue, (void *) currentThread) != 0){
       printf("[cwait] Failed to Append Queue \n");
       return -1;
     }
     swapcontext(&currentThread->context, &dispatchThread->context);
   }
+  sem->count--;
   return 0;
 }
 //: a chamada csignal serve para indicar que a thread está liberando o recurso.
@@ -306,16 +351,16 @@ int cwait (csem_t *sem){
 int csignal (csem_t *sem){
   printf("[csignal] Starting proc\n");
   sem->count++;
-  if(FirstFila2(sem->fila) == 0){
-    TCB_t *t_des = (TCB_t *) GetAtIteratorFila2(sem->fila);
-    t_des->state = PROCST_APTO;
-
-    AppendFila2 (&readyQueue, t_des); //n sei se eh isso q eh pra fazer
-
-    if(DeleteAtIteratorFila2(sem->fila) != 0){
-      printf("[csignal] Failed to delete iterator\n");
+  if(FirstFila2(&blockedQueue) == 0){
+    TCB_t *t_des = (TCB_t *) findInBlockedBySemaphore(sem, true);
+    if(t_des == NULL) {
+      printf("[csignal] Error, semaphore queue is empty\n");
       return -1;
     }
+    t_des->state = PROCST_APTO;
+    t_des->isInSemaphore = false;
+    t_des->semaphore = NULL;
+    AppendFila2 (&readyQueue, t_des); //n sei se eh isso q eh pra fazer
   }
   return 0;
 }

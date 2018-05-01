@@ -33,6 +33,8 @@ typedef struct s_TCB {
 	/* Se necess�rio, pode-se acresecentar campos nessa estrutura A PARTIR DAQUI! */
 	bool isJoined;
 	int jointid;
+	csem_t* semaphore;
+	bool isInSemaphore;
 } TCB_t;
 
 
