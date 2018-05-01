@@ -19,6 +19,18 @@ TCB_t *mainThread;
 TCB_t *dispatchThread;
 TCB_t *endThread;
 
+void printBlockedQueue() {
+  printf("Threads Blocked: \n");
+  if(FirstFila2(&blockedQueue) == 0) {
+    while(GetAtIteratorFila2(&blockedQueue) != NULL){
+  		TCB_t *threadInQueue = (TCB_t *) GetAtIteratorFila2(&blockedQueue);
+      printf("TID: %d\n", threadInQueue->tid);
+      if(NextFila2(&blockedQueue) != 0)
+        return;
+    }
+  }
+}
+
 void dispatch(){
   printf("[dispatch] Starting dispatch proc\n");
   if(FirstFila2(&readyQueue) == 0) {
@@ -90,10 +102,25 @@ void dispatchThreadProc(){
 }
 
 void unblock(int tid){
+  printBlockedQueue();
   printf("[unblock] TID = %d\n", tid);
 	currentThread->isJoined = false;
   currentThread->jointid = NULL;
-  TCB_t* unblockedThread = findInQueueByTid(tid, blockedQueue, true);
+  TCB_t* unblockedThread = findInQueueByTid(tid, blockedQueue, false);
+  // Seg fault ?
+  if(unblockedThread != NULL) {
+    if(FirstFila2(&blockedQueue) == 0) {
+      while(GetAtIteratorFila2(&blockedQueue) != NULL){
+    		TCB_t *threadInQueue = (TCB_t *) GetAtIteratorFila2(&blockedQueue);
+        if(threadInQueue->tid == unblockedThread->tid) {
+          DeleteAtIteratorFila2(&blockedQueue);
+          break;
+        } else if(NextFila2(&blockedQueue) != 0) {
+          break;
+        }
+      }
+  	}
+  };
   if (unblockedThread != NULL && unblockedThread->isInSemaphore == true) {
     printf("[unblock] Trying to unblock thread TID = %d, but it is in semaphore\n", unblockedThread->tid);
     return;
@@ -198,6 +225,7 @@ int cyield(){
   swapcontext(&currentThread->context, &dispatchThread->context);
 	return 0;
 }
+
 
 //  Sincronização de término: uma thread pode ser bloqueada até que outra
 //  termine sua execução usando a função cjoin. A função cjoin recebe como
