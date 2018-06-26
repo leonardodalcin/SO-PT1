@@ -105,7 +105,7 @@ void error(char *code){
 }
 
 int main(int argc, char **argv) {
-    int i, r, print=0, t=1, n=256, lim=100;
+    int i, r, print=0, t=8, n=256, lim=100;
     double c0_r=-2.0, c0_i=1.25, c1_r=0.5, c1_i=-1.25;
     struct work *workload;
     int *workers;

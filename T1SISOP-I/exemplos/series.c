@@ -43,7 +43,7 @@ void* fibonnaci (void *i) {
 
 int main(int argc, char **argv) {
 	int id0, id1;
-	int i = 10;
+	int i = 50;
 
 	id0 = ccreate(fatorial, (void *)&i, 0);
 	id1 = ccreate(fibonnaci, (void *)&i, 0);

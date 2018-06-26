@@ -9,8 +9,8 @@
 #include	<stdio.h>
 #include	<stdlib.h>
 
-#define		MAX_SIZE	250
-#define		MAX_THR		10
+#define		MAX_SIZE	10000
+#define		MAX_THR		100
 
 int vetor[MAX_SIZE];
 int  inc = 0;

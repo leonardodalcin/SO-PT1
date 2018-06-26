@@ -16,11 +16,20 @@ INC_DIR=./include
 BIN_DIR=./bin
 SRC_DIR=./src
 TST_DIR=./tests
+EXP_DIR=./exemplos
 
-all: ccreate_test
+all: e4
 
 # test_all: ccreate
 # 	$(CC) -o $(BIN_DIR)/ccreate_test $(SRC_DIR)/cthread.c -Wall
+e1:
+	$(CC) -o ./exec ${EXP_DIR}/exemplo.c $(SRC_DIR)/cthread.c $(BIN_DIR)/support.o -Wall
+e2:
+	$(CC) -o ./exec ${EXP_DIR}/mandel.c $(SRC_DIR)/cthread.c $(BIN_DIR)/support.o -Wall
+e3:
+	$(CC) -o ./exec ${EXP_DIR}/series.c $(SRC_DIR)/cthread.c $(BIN_DIR)/support.o -Wall
+e4:
+	$(CC) -o ./exec ${EXP_DIR}/teste_vetor.c $(SRC_DIR)/cthread.c $(BIN_DIR)/support.o -Wall
 ccreate_test:
 	$(CC) -o ./exec ${TST_DIR}/ccreate.c $(SRC_DIR)/cthread.c $(BIN_DIR)/support.o -Wall
 cyield_test:
