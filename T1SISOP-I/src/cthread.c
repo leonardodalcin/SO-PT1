@@ -88,7 +88,7 @@ void dispatchThreadProc() {
 
 void unblock(int tid) {
   currentThread->isJoined = false;
-  currentThread->jointid = NULL;
+  currentThread->jointid = 0;
   TCB_t *unblockedThread = findInQueueByTid(tid, blockedQueue, false);
   // Seg fault ?
   if (unblockedThread != NULL) {
@@ -109,7 +109,7 @@ void unblock(int tid) {
     return;
   }
 
-  if (unblockedThread == -1) return;
+  if (unblockedThread == NULL) return;
   else AppendFila2(&readyQueue, unblockedThread);
   return;
 }
@@ -132,10 +132,10 @@ void boot() {
   mainThread->isInSemaphore = false;
   mainThread->semaphore = NULL;
   mainThread->isJoined = false;
-  mainThread->jointid = NULL;
+  mainThread->jointid = 0;
   mainThread->state = PROCST_EXEC;
   getcontext(&mainThread->context);
-  mainThread->context.uc_link = &endThreadProc;
+  mainThread->context.uc_link = (ucontext_t *) &endThreadProc;
   mainThread->context.uc_stack.ss_sp = (char *) malloc(stackSize);
   mainThread->context.uc_stack.ss_size = stackSize;
   makecontext(&mainThread->context, (void (*)(void)) endThreadProc, 0);
