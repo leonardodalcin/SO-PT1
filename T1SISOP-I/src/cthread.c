@@ -274,7 +274,7 @@ int csuspend(int tid) {
   }
   if (foundThread != NULL) {
 
-    if (foundInReady) AppendFila2(&suspendedReadyQueue, foundThread);
+    if (foundInReady != NULL) AppendFila2(&suspendedReadyQueue, foundThread);
     else AppendFila2(&suspendedBlockedQueue, foundThread);
     swapcontext(&currentThread->context, &dispatchThread->context);
     return 0;
@@ -299,7 +299,7 @@ int cresume(int tid) {
   }
   if (foundThread != NULL) {
 
-    if (foundInSuspendedReady) AppendFila2(&readyQueue, foundThread);
+    if (foundInSuspendedReady != NULL) AppendFila2(&readyQueue, foundThread);
     else AppendFila2(&blockedQueue, foundThread);
     swapcontext(&currentThread->context, &dispatchThread->context);
     return 0;
